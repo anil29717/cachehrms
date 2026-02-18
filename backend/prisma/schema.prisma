@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id              String    @id @default(uuid()) @db.Uuid
+  employeeCode    String    @unique @map("employee_code")
+  firstName       String    @map("first_name")
+  lastName        String    @map("last_name")
+  email           String    @unique
+  phone           String?
+  dateOfBirth     DateTime? @map("date_of_birth") @db.Date
+  gender          String?
+  departmentId    Int?      @map("department_id")
+  designation     String?
+  reportingTo     String?   @map("reporting_to")
+  dateOfJoining   DateTime? @map("date_of_joining") @db.Date
+  employmentType  String    @map("employment_type") // full_time, contract, intern, part_time
+  status          String    @default("active") // active, inactive, terminated, on_leave
+  workLocation    String?   @map("work_location")
+  profileImage    String?   @map("profile_image")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  department      Department?      @relation(fields: [departmentId], references: [id])
+  users           User[]
+  attendance      Attendance[]
+  leaveRequests   LeaveRequest[]
+  leaveBalances   LeaveBalance[]
+  payrolls        Payroll[]
+  salaryStructure SalaryStructure?
+
+  @@map("employees")
+}
+
+model Department {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  headId      String?   @map("head_id")
+  parentId    Int?      @map("parent_id")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  parent   Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children Department[] @relation("DepartmentHierarchy")
+  employees Employee[]
+
+  @@map("departments")
+}
+
+model Role {
+  id             Int      @id @default(autoincrement())
+  name           String   @unique // super_admin, hr_admin, manager, employee
+  description    String?
+  hierarchyLevel Int      @map("hierarchy_level")
+  isSystemRole   Boolean  @default(true) @map("is_system_role")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  module      String   // dashboard, employees, attendance, leave, payroll, reports, settings, departments
+  action      String   // view, create, edit, delete, approve, export
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  employeeId   String    @map("employee_id")
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  roleId       Int       @map("role_id")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLogin    DateTime? @map("last_login")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+  role     Role     @relation(fields: [roleId], references: [id])
+
+  @@map("users")
+}
+
+model Attendance {
+  id            String    @id @default(uuid()) @db.Uuid
+  employeeId    String    @map("employee_id")
+  checkIn       DateTime? @map("check_in")
+  checkOut      DateTime? @map("check_out")
+  date          DateTime  @db.Date
+  status        String    // present, absent, late, half_day, wfh, holiday, leave
+  workingHours  Float?    @map("working_hours")
+  overtimeHours Float?    @map("overtime_hours")
+  lateMinutes   Int?      @map("late_minutes")
+  checkInIp     String?   @map("check_in_ip")
+  checkOutIp    String?   @map("check_out_ip")
+  remarks       String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+
+  @@map("attendance")
+}
+
+model Shift {
+  id         Int      @id @default(autoincrement())
+  name       String
+  startTime  DateTime @map("start_time") @db.Time
+  endTime    DateTime @map("end_time") @db.Time
+  gracePeriod Int     @default(0) @map("grace_period")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("shifts")
+}
+
+model LeaveRequest {
+  id             String    @id @default(uuid()) @db.Uuid
+  employeeId     String    @map("employee_id")
+  leaveType      String    @map("leave_type") // sick, casual, earned, maternity, paternity, unpaid, comp_off
+  startDate      DateTime  @map("start_date") @db.Date
+  endDate       DateTime  @map("end_date") @db.Date
+  totalDays      Float     @map("total_days")
+  reason         String?   @db.Text
+  status         String    @default("pending") // pending, approved, rejected, cancelled
+  approverId     String?   @map("approver_id") @db.Uuid
+  approvedAt     DateTime? @map("approved_at")
+  approverRemarks String?  @map("approver_remarks") @db.Text
+  documentUrl    String?   @map("document_url")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+
+  @@map("leave_requests")
+}
+
+model LeaveBalance {
+  id             String   @id @default(uuid()) @db.Uuid
+  employeeId     String   @map("employee_id")
+  leaveType      String   @map("leave_type")
+  year           Int
+  openingBalance Float   @map("opening_balance")
+  credited       Float
+  taken          Float
+  closingBalance Float   @map("closing_balance")
+  lastUpdated    DateTime @default(now()) @map("last_updated")
+
+  employee Employee @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+
+  @@unique([employeeId, leaveType, year])
+  @@map("leave_balances")
+}
+
+model Payroll {
+  id               String    @id @default(uuid()) @db.Uuid
+  employeeId       String    @map("employee_id")
+  month            Int
+  year             Int
+  basicSalary      Float     @map("basic_salary")
+  hra              Float     @default(0)
+  conveyance       Float     @default(0)
+  medical          Float     @default(0)
+  specialAllowance Float    @map("special_allowance") @default(0)
+  bonus            Float     @default(0)
+  overtime         Float     @default(0)
+  reimbursement    Float     @default(0)
+  grossEarnings    Float     @map("gross_earnings")
+  pfDeduction      Float     @map("pf_deduction") @default(0)
+  professionalTax  Float     @map("professional_tax") @default(0)
+  incomeTax        Float     @map("income_tax") @default(0)
+  totalDeductions  Float     @map("total_deductions")
+  netSalary        Float     @map("net_salary")
+  paymentDate      DateTime? @map("payment_date")
+  paymentStatus    String    @map("payment_status") // pending, processed, failed
+  payslipUrl       String?   @map("payslip_url")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  employee Employee @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+
+  @@unique([employeeId, month, year])
+  @@map("payroll")
+}
+
+model SalaryStructure {
+  id                String   @id @default(uuid()) @db.Uuid
+  employeeId        String   @unique @map("employee_id")
+  basicSalary       Float    @map("basic_salary")
+  hra               Float    @default(0)
+  conveyance        Float    @default(0)
+  medical           Float    @default(0)
+  specialAllowance  Float    @map("special_allowance") @default(0)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  employee Employee @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+
+  @@map("salary_structures")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  employeeId String?  @map("employee_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  ipAddress  String?  @map("ip_address")
+  timestamp  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model ApiAccess {
+  id               String         @id @default(uuid()) @db.Uuid
+  clientName       String         @map("client_name")
+  apiKey           String         @unique @map("api_key")
+  permissions      Json?
+  isActive         Boolean        @default(true) @map("is_active")
+  rateLimitPerHour Int            @default(1000) @map("rate_limit_per_hour")
+  expiresAt        DateTime?      @map("expires_at")
+  lastUsedAt       DateTime?     @map("last_used_at")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  logs             ApiAccessLog[]
+
+  @@map("api_access")
+}
+
+model ApiAccessLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  apiAccessId String   @map("api_access_id")
+  method      String
+  endpoint    String
+  statusCode  Int      @map("status_code")
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  apiAccess ApiAccess @relation(fields: [apiAccessId], references: [id], onDelete: Cascade)
+
+  @@map("api_access_logs")
+}

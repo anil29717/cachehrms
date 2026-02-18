@@ -1,0 +1,21 @@
+# Env (secrets)
+.env
+.env.local
+*.env
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+
+# Prisma
+backend/prisma/migrations/**/migration_lock.toml
+
+# IDE / OS
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db

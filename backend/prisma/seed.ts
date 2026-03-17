@@ -90,6 +90,56 @@ async function main() {
     update: { passwordHash, roleId: superAdminRole.id },
   });
 
+  // Default expense types (from spec) – only if model exists and none in DB
+  if (typeof (prisma as any).expenseType?.count === 'function') {
+    try {
+      const expenseTypeCount = await (prisma as any).expenseType.count();
+      if (expenseTypeCount === 0) {
+        const defaultExpenseTypes = [
+          { category: 'travel', name: 'Flight', limitAmount: 15000, limitUnit: null },
+          { category: 'travel', name: 'Train', limitAmount: 3000, limitUnit: null },
+          { category: 'travel', name: 'Cab', limitAmount: 500, limitUnit: 'day' },
+          { category: 'travel', name: 'Fuel', limitAmount: 100, limitUnit: 'km' },
+          { category: 'food', name: 'Meals', limitAmount: 500, limitUnit: 'meal' },
+          { category: 'food', name: 'Client Meeting', limitAmount: 2000, limitUnit: null },
+          { category: 'food', name: 'Team Lunch', limitAmount: 800, limitUnit: 'person' },
+          { category: 'accommodation', name: 'Hotel', limitAmount: 5000, limitUnit: 'day' },
+          { category: 'office', name: 'Stationery', limitAmount: 1000, limitUnit: 'month' },
+          { category: 'office', name: 'Software', limitAmount: 5000, limitUnit: 'year' },
+          { category: 'learning', name: 'Courses', limitAmount: 15000, limitUnit: 'year' },
+          { category: 'learning', name: 'Books', limitAmount: 2000, limitUnit: null },
+          { category: 'medical', name: 'Medical', limitAmount: 3000, limitUnit: null },
+          { category: 'relocation', name: 'Relocation', limitAmount: 20000, limitUnit: null },
+        ];
+        await (prisma as any).expenseType.createMany({ data: defaultExpenseTypes });
+        console.log('Expense types seeded:', defaultExpenseTypes.length);
+      }
+    } catch (e) {
+      console.warn('Expense types seed skipped (run migration first):', (e as Error).message);
+    }
+  }
+
+  // National holidays (India) – only if model exists and none in DB
+  if (typeof (prisma as any).nationalHoliday?.count === 'function') {
+    try {
+      const count = await (prisma as any).nationalHoliday.count();
+      if (count === 0) {
+        const holidays = [
+          { name: 'Republic Day', holidayDate: new Date(2025, 0, 26), year: 2025, isOptional: false },
+          { name: 'Independence Day', holidayDate: new Date(2025, 7, 15), year: 2025, isOptional: false },
+          { name: 'Gandhi Jayanti', holidayDate: new Date(2025, 9, 2), year: 2025, isOptional: false },
+          { name: 'Republic Day', holidayDate: new Date(2026, 0, 26), year: 2026, isOptional: false },
+          { name: 'Independence Day', holidayDate: new Date(2026, 7, 15), year: 2026, isOptional: false },
+          { name: 'Gandhi Jayanti', holidayDate: new Date(2026, 9, 2), year: 2026, isOptional: false },
+        ];
+        await (prisma as any).nationalHoliday.createMany({ data: holidays });
+        console.log('National holidays seeded:', holidays.length);
+      }
+    } catch (e) {
+      console.warn('National holidays seed skipped:', (e as Error).message);
+    }
+  }
+
   console.log('Seed completed. Login: admin@cachedigitech.com / Admin@123');
 }
 

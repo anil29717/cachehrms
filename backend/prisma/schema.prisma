@@ -19,6 +19,8 @@ model Employee {
   departmentId    Int?      @map("department_id")
   designation     String?
   reportingTo     String?   @map("reporting_to")
+  externalRole    String    @default("employee") @map("external_role") // employee | manager | admin | subadmin
+  externalSubRole String?   @map("external_sub_role") // for subadmin only: CTO, CFO, etc.
   dateOfJoining   DateTime? @map("date_of_joining") @db.Date
   employmentType  String    @map("employment_type") // full_time, contract, intern, part_time
   status          String    @default("active") // active, inactive, terminated, on_leave
@@ -34,22 +36,192 @@ model Employee {
   leaveBalances   LeaveBalance[]
   payrolls        Payroll[]
   salaryStructure SalaryStructure?
+  bookings        Booking[]
+  assetAllocations    AssetAllocation[]
+  maintenanceRequests MaintenanceRequest[]
+  ticketsCreated      Ticket[]          @relation("TicketCreatedBy")
+  ticketsAssigned     Ticket[]          @relation("TicketAssignedTo")
+  ticketsRegarding    Ticket[]          @relation("TicketRegardingEmployee")
+  expenseClaims       ExpenseClaim[]
+  announcementsCreated Announcement[]
+  announcementReads    AnnouncementRead[]
+  onboardings          Onboarding[]
 
   @@map("employees")
+}
+
+// ----- Onboarding flow (staged: Offer Acceptance → … → HR Review & Activation) -----
+model Onboarding {
+  id              String    @id @default(uuid()) @db.Uuid
+  candidateEmail  String    @map("candidate_email")
+  employeeType    String    @map("employee_type") // FRESHER | SWITCHING
+  currentStage    Int       @default(1) @map("current_stage") // 1..10
+  status          String    @default("OFFER_ACCEPTED") @map("status") // OFFER_ACCEPTED, DOCUMENTS_PENDING, ...
+  departmentId    Int?      @map("department_id") // For EMP-YYYY-DEPT-NNN at Stage 8
+  designation     String?   // Offered designation
+  inviteToken     String?   @unique @map("invite_token") // For candidate link: /onboarding/join/:token
+  inviteTokenExp  DateTime? @map("invite_token_exp") @db.Timestamptz
+  employeeId      String?   @map("employee_id") // Set at Stage 8 when Employee created
+  itSetupCompletedAt DateTime? @map("it_setup_completed_at") @db.Timestamptz
+  itSetupNotes    String?   @map("it_setup_notes") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  department      Department? @relation(fields: [departmentId], references: [id])
+  employee        Employee?   @relation(fields: [employeeId], references: [employeeCode], onDelete: SetNull)
+  personalInfo    OnboardingPersonalInfo?
+  documents       OnboardingDocument[]
+  bankDetail      OnboardingBankDetail?
+  emergencyContacts OnboardingEmergencyContact[]
+  educations      OnboardingEducation[]
+  experiences     OnboardingExperience[]
+
+  @@map("onboardings")
+}
+
+model OnboardingPersonalInfo {
+  id                String    @id @default(uuid()) @db.Uuid
+  onboardingId      String    @unique @map("onboarding_id") @db.Uuid
+  firstName         String    @map("first_name")
+  lastName          String    @map("last_name")
+  middleName        String?   @map("middle_name")
+  dateOfBirth       DateTime  @map("date_of_birth") @db.Date
+  gender            String
+  maritalStatus     String?   @map("marital_status")
+  nationality       String
+  bloodGroup        String?   @map("blood_group")
+  personalEmail     String    @map("personal_email")
+  personalMobile    String    @map("personal_mobile")
+  alternateMobile   String?   @map("alternate_mobile")
+  currentAddress    String    @map("current_address") @db.Text
+  currentCity       String    @map("current_city")
+  currentState      String    @map("current_state")
+  currentPincode    String    @map("current_pincode")
+  currentCountry    String    @map("current_country")
+  permanentAddress  String    @map("permanent_address") @db.Text
+  permanentCity     String    @map("permanent_city")
+  permanentState    String    @map("permanent_state")
+  permanentPincode  String    @map("permanent_pincode")
+  permanentCountry  String    @map("permanent_country")
+  panNumber         String?   @map("pan_number")
+  aadhaarNumber     String?   @map("aadhaar_number")
+  passportNumber    String?   @map("passport_number")
+  spouseName        String?   @map("spouse_name")
+  spouseDateOfBirth DateTime? @map("spouse_date_of_birth") @db.Date
+  childrenNames     String?   @map("children_names") @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  onboarding Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  @@map("onboarding_personal_info")
+}
+
+model OnboardingDocument {
+  id            String    @id @default(uuid()) @db.Uuid
+  onboardingId  String    @map("onboarding_id") @db.Uuid
+  documentType  String    @map("document_type") // photo, identity_proof, address_proof, pan_card, ...
+  filePath      String    @map("file_path")
+  fileName      String    @map("file_name")
+  fileSize      Int?      @map("file_size")
+  verificationStatus String @default("PENDING") @map("verification_status") // PENDING, VERIFIED, REJECTED
+  verifiedBy    String?   @map("verified_by") @db.Uuid
+  verifiedAt    DateTime? @map("verified_at") @db.Timestamptz
+  rejectionReason String? @map("rejection_reason") @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  onboarding Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  @@map("onboarding_documents")
+}
+
+model OnboardingBankDetail {
+  id                  String   @id @default(uuid()) @db.Uuid
+  onboardingId        String   @unique @map("onboarding_id") @db.Uuid
+  accountHolderName   String   @map("account_holder_name")
+  bankName            String   @map("bank_name")
+  branchName          String?  @map("branch_name")
+  accountNumber       String   @map("account_number")
+  ifscCode            String   @map("ifsc_code")
+  accountType         String   @map("account_type") // savings, current
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  onboarding Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  @@map("onboarding_bank_details")
+}
+
+model OnboardingEmergencyContact {
+  id           String   @id @default(uuid()) @db.Uuid
+  onboardingId String  @map("onboarding_id") @db.Uuid
+  contactName  String   @map("contact_name")
+  relationship String
+  phone        String
+  alternatePhone String? @map("alternate_phone")
+  email        String?
+  address      String?  @db.Text
+  isPrimary    Boolean  @default(false) @map("is_primary")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  onboarding Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  @@map("onboarding_emergency_contacts")
+}
+
+model OnboardingEducation {
+  id              String   @id @default(uuid()) @db.Uuid
+  onboardingId     String   @map("onboarding_id") @db.Uuid
+  qualification    String
+  institution      String
+  universityBoard  String   @map("university_board")
+  yearOfPassing    Int      @map("year_of_passing")
+  percentageOrCgpa  String?  @map("percentage_or_cgpa")
+  divisionOrClass   String?  @map("division_or_class")
+  specialization    String?
+  startDate        DateTime? @map("start_date") @db.Date
+  endDate          DateTime? @map("end_date") @db.Date
+  marksheetPath    String?   @map("marksheet_path")
+  degreeCertPath   String?   @map("degree_cert_path")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  onboarding Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  @@map("onboarding_educations")
+}
+
+model OnboardingExperience {
+  id              String    @id @default(uuid()) @db.Uuid
+  onboardingId    String    @map("onboarding_id") @db.Uuid
+  companyName     String    @map("company_name")
+  designation     String
+  employmentType   String    @map("employment_type") // full_time, contract, ...
+  startDate       DateTime  @map("start_date") @db.Date
+  endDate         DateTime  @map("end_date") @db.Date
+  isCurrent       Boolean   @default(false) @map("is_current")
+  reasonForLeaving String?   @map("reason_for_leaving") @db.Text
+  lastDrawnSalary  String?   @map("last_drawn_salary") // store as string for flexibility
+  reportingManagerName String? @map("reporting_manager_name")
+  experienceLetterPath String? @map("experience_letter_path")
+  salarySlipPath   String?   @map("salary_slip_path")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  onboarding Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  @@map("onboarding_experiences")
 }
 
 model Department {
   id          Int       @id @default(autoincrement())
   name        String    @unique
+  code        String?   @unique // Short code for employee ID e.g. IT, HR (EMP-2026-IT-001)
   description String?
   headId      String?   @map("head_id")
   parentId    Int?      @map("parent_id")
   isActive    Boolean   @default(true) @map("is_active")
   createdAt   DateTime  @default(now()) @map("created_at")
 
-  parent   Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
-  children Department[] @relation("DepartmentHierarchy")
-  employees Employee[]
+  parent      Department?   @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children    Department[]  @relation("DepartmentHierarchy")
+  employees   Employee[]
+  onboardings  Onboarding[]
 
   @@map("departments")
 }
@@ -93,19 +265,39 @@ model RolePermission {
 }
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  employeeId   String    @map("employee_id")
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  roleId       Int       @map("role_id")
-  isActive     Boolean   @default(true) @map("is_active")
-  lastLogin    DateTime? @map("last_login")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id              String    @id @default(uuid()) @db.Uuid
+  employeeId      String    @map("employee_id")
+  email           String    @unique
+  passwordHash    String    @map("password_hash")
+  defaultPassword String?   @map("default_password") // Stored when user is created; exposed via API only if key has permission
+  roleId          Int       @map("role_id")
+  isActive        Boolean   @default(true) @map("is_active")
+  lastLogin       DateTime? @map("last_login")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
-  employee Employee @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
-  role     Role     @relation(fields: [roleId], references: [id])
+  employee            Employee              @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+  role                Role                 @relation(fields: [roleId], references: [id])
+  userScopePermissions UserScopePermission[]
 
   @@map("users")
+}
+
+/// RBAC: per-user (HR) access to sidebar modules/submodules. Super Admin has full access and is not stored here.
+model UserScopePermission {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  scopeId   String   @map("scope_id")   // e.g. dashboard, leave, leave.requests
+  canView   Boolean  @default(false) @map("can_view")
+  canCreate Boolean  @default(false) @map("can_create")
+  canEdit   Boolean  @default(false) @map("can_edit")
+  canDelete Boolean  @default(false) @map("can_delete")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, scopeId])
+  @@index([userId])
+  @@map("user_scope_permissions")
 }
 
 model Attendance {
@@ -175,6 +367,19 @@ model LeaveBalance {
 
   @@unique([employeeId, leaveType, year])
   @@map("leave_balances")
+}
+
+model LeavePolicy {
+  id                 Int      @id @default(autoincrement())
+  leaveType          String   @unique @map("leave_type")
+  name               String
+  defaultDaysPerYear Float    @map("default_days_per_year")
+  description        String?  @db.Text
+  isPaid             Boolean  @default(true) @map("is_paid")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("leave_policies")
 }
 
 model Payroll {
@@ -255,7 +460,7 @@ model ApiAccess {
 
 model ApiAccessLog {
   id          String   @id @default(uuid()) @db.Uuid
-  apiAccessId String   @map("api_access_id")
+  apiAccessId String   @map("api_access_id") @db.Uuid
   method      String
   endpoint    String
   statusCode  Int      @map("status_code")
@@ -265,4 +470,290 @@ model ApiAccessLog {
   apiAccess ApiAccess @relation(fields: [apiAccessId], references: [id], onDelete: Cascade)
 
   @@map("api_access_logs")
+}
+
+/// Key-value store for admin config (e.g. which fields the employee full API returns).
+model SystemSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  value     Json?
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+// --- Room booking (no building/location hierarchy) ---
+model Room {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @map("name")
+  roomType  String   @map("room_type") // conference_room, meeting_room, cabin
+  capacity  Int?     @map("capacity")
+  amenities String?  @map("amenities")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  bookings Booking[]
+
+  @@map("rooms")
+}
+
+model Booking {
+  id          String    @id @default(uuid()) @db.Uuid
+  roomId      String    @map("room_id") @db.Uuid
+  employeeId  String    @map("employee_id")
+  startTime   DateTime  @map("start_time")
+  endTime     DateTime  @map("end_time")
+  title       String?   @map("title")
+  description String?   @map("description") @db.Text
+  status      String    @default("confirmed") // confirmed, cancelled
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+
+  @@index([roomId, startTime, endTime])
+  @@map("bookings")
+}
+
+// --- Asset management ---
+model AssetCategory {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  assets Asset[]
+
+  @@map("asset_categories")
+}
+
+model Asset {
+  id            String    @id @default(uuid()) @db.Uuid
+  categoryId    Int       @map("category_id")
+  name          String    @map("name")
+  serialNumber  String?   @map("serial_number")
+  purchaseDate  DateTime? @map("purchase_date") @db.Date
+  status        String    @default("available") // available, allocated, under_maintenance, retired
+  condition     String?   // good, fair, poor
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  category   AssetCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  allocations AssetAllocation[]
+  maintenanceRequests MaintenanceRequest[]
+
+  @@map("assets")
+}
+
+model AssetAllocation {
+  id                  String    @id @default(uuid()) @db.Uuid
+  assetId             String    @map("asset_id") @db.Uuid
+  employeeId          String    @map("employee_id")
+  assignedAt          DateTime  @map("assigned_at")
+  returnedAt          DateTime? @map("returned_at")
+  conditionAtAssignment String? @map("condition_at_assignment")
+  notes               String?   @db.Text
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  asset    Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+
+  @@index([assetId])
+  @@index([employeeId])
+  @@map("asset_allocations")
+}
+
+model MaintenanceRequest {
+  id           String    @id @default(uuid()) @db.Uuid
+  assetId      String    @map("asset_id") @db.Uuid
+  requestedBy  String    @map("requested_by")
+  requestedAt  DateTime  @map("requested_at")
+  description  String    @db.Text
+  status       String    @default("pending") // pending, in_progress, completed, cancelled
+  completedAt  DateTime? @map("completed_at")
+  cost         Float?    @map("cost")
+  repairNotes  String?   @map("repair_notes") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  asset    Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [requestedBy], references: [employeeCode], onDelete: Cascade)
+
+  @@index([assetId])
+  @@index([status])
+  @@map("maintenance_requests")
+}
+
+// --- Ticket system ---
+model TicketCategory {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tickets Ticket[]
+
+  @@map("ticket_categories")
+}
+
+model Ticket {
+  id                   String    @id @default(uuid()) @db.Uuid
+  categoryId           Int?      @map("category_id")
+  subject              String    @map("subject")
+  description          String    @db.Text
+  status               String    @default("open") // open, in_progress, resolved, closed
+  priority             String    @default("medium") // low, medium, high, urgent
+  createdBy            String    @map("created_by")
+  regardingEmployeeCode String?  @map("regarding_employee_code") // employee this ticket is about
+  assignedTo           String?   @map("assigned_to")
+  resolvedAt           DateTime? @map("resolved_at")
+  closedAt             DateTime? @map("closed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  category    TicketCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  creator     Employee        @relation("TicketCreatedBy", fields: [createdBy], references: [employeeCode], onDelete: Cascade)
+  regarding   Employee?       @relation("TicketRegardingEmployee", fields: [regardingEmployeeCode], references: [employeeCode], onDelete: SetNull)
+  assignee    Employee?       @relation("TicketAssignedTo", fields: [assignedTo], references: [employeeCode], onDelete: SetNull)
+
+  @@index([status])
+  @@index([priority])
+  @@index([createdBy])
+  @@index([assignedTo])
+  @@index([categoryId])
+  @@index([regardingEmployeeCode])
+  @@map("tickets")
+}
+
+// --- Expense management ---
+model ExpenseType {
+  id          Int      @id @default(autoincrement())
+  category    String   @map("category") // travel, food, accommodation, office, learning, medical, relocation
+  name        String   @map("name")     // Flight, Train, Meals, Hotel, etc.
+  limitAmount Float    @map("limit_amount")
+  limitUnit   String?  @map("limit_unit") // null = one_time, day, km, meal, person, month, year
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  claimItems ExpenseClaimItem[]
+
+  @@map("expense_types")
+}
+
+model ExpenseClaim {
+  id                   String    @id @default(uuid()) @db.Uuid
+  employeeId           String    @map("employee_id")
+  totalAmount           Float     @map("total_amount")
+  status                String    @default("pending") // pending, manager_approved, finance_approved, paid, rejected
+  managerApprovedAt    DateTime? @map("manager_approved_at")
+  managerApprovedBy    String?   @map("manager_approved_by") @db.Uuid
+  financeApprovedAt    DateTime? @map("finance_approved_at")
+  financeApprovedBy    String?   @map("finance_approved_by") @db.Uuid
+  hrApprovedAt         DateTime? @map("hr_approved_at")
+  hrApprovedBy         String?   @map("hr_approved_by") @db.Uuid
+  rejectedAt           DateTime? @map("rejected_at")
+  rejectedBy           String?   @map("rejected_by") @db.Uuid
+  rejectReason         String?   @map("reject_reason") @db.Text
+  paidAt               DateTime? @map("paid_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  employee Employee          @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+  items    ExpenseClaimItem[]
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("expense_claims")
+}
+
+model ExpenseClaimItem {
+  id           String    @id @default(uuid()) @db.Uuid
+  claimId      String    @map("claim_id") @db.Uuid
+  expenseTypeId Int     @map("expense_type_id")
+  amount       Float    @map("amount")
+  quantity     Float?   @map("quantity") // e.g. km, days, meals
+  description  String?  @map("description") @db.Text
+  expenseDate  DateTime @map("expense_date") @db.Date
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  claim      ExpenseClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  expenseType ExpenseType @relation(fields: [expenseTypeId], references: [id], onDelete: Restrict)
+
+  @@index([claimId])
+  @@map("expense_claim_items")
+}
+
+// --- Announcements ---
+model Announcement {
+  id        String    @id @default(uuid()) @db.Uuid
+  type      String    @map("type") // birthday, holiday, asset, event, deadline, urgent, policy
+  title     String    @map("title")
+  body      String    @map("body") @db.Text
+  eventDate DateTime? @map("event_date") @db.Date
+  createdBy String    @map("created_by")
+  sentAt    DateTime? @map("sent_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  creator Employee           @relation(fields: [createdBy], references: [employeeCode], onDelete: Cascade)
+  reads   AnnouncementRead[]
+
+  @@index([type])
+  @@index([sentAt])
+  @@index([eventDate])
+  @@map("announcements")
+}
+
+model AnnouncementRead {
+  id             String   @id @default(uuid()) @db.Uuid
+  announcementId String   @map("announcement_id") @db.Uuid
+  employeeId     String   @map("employee_id")
+  readAt         DateTime @default(now()) @map("read_at")
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation(fields: [employeeId], references: [employeeCode], onDelete: Cascade)
+
+  @@unique([announcementId, employeeId])
+  @@index([announcementId])
+  @@index([employeeId])
+  @@map("announcement_reads")
+}
+
+// --- National holidays (for auto-feed on Holiday announcements) ---
+model NationalHoliday {
+  id          Int       @id @default(autoincrement())
+  name        String    @map("name")
+  holidayDate DateTime  @map("holiday_date") @db.Date
+  year        Int?      @map("year") // null = recurring (use month-day every year)
+  isOptional  Boolean   @default(false) @map("is_optional") // optional holiday
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([holidayDate])
+  @@index([year])
+  @@map("national_holidays")
+}
+
+// --- System / audit logs (all API operations) ---
+model SystemLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  employeeId String?  @map("employee_id")
+  email      String?  @db.VarChar(255)
+  method     String   @db.VarChar(10)
+  path       String   @db.VarChar(512)
+  statusCode Int      @map("status_code")
+  ip         String?  @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([employeeId])
+  @@index([method])
+  @@index([path])
+  @@map("system_logs")
 }

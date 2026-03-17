@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+out/
+
+# Env (secrets)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Uploads (onboarding documents, etc.)
+uploads/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Prisma (optional: uncomment if you don't want generated client tracked)
+# node_modules/.prisma/
+
+# Testing
+coverage/
+.nyc_output/

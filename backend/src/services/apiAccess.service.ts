@@ -9,6 +9,8 @@ export type CreateApiAccessInput = {
   clientName: string;
   rateLimitPerHour?: number;
   expiresAt?: Date | null;
+  /** Fields this key can access for GET .../employees/:id/full. Empty = use global setting / all. */
+  employeeFullFields?: string[];
 };
 
 export class ApiAccessService {
@@ -21,16 +23,20 @@ export class ApiAccessService {
     const list = await prisma.apiAccess.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    return list.map((a) => ({
-      id: a.id,
-      clientName: a.clientName,
-      apiKeyMasked: this.maskKey(a.apiKey),
-      isActive: a.isActive,
-      rateLimitPerHour: a.rateLimitPerHour,
-      expiresAt: a.expiresAt,
-      lastUsedAt: a.lastUsedAt,
-      createdAt: a.createdAt,
-    }));
+    return list.map((a) => {
+      const permissions = (a.permissions as { employeeFullFields?: string[] } | null) ?? {};
+      return {
+        id: a.id,
+        clientName: a.clientName,
+        apiKeyMasked: this.maskKey(a.apiKey),
+        isActive: a.isActive,
+        rateLimitPerHour: a.rateLimitPerHour,
+        expiresAt: a.expiresAt,
+        lastUsedAt: a.lastUsedAt,
+        createdAt: a.createdAt,
+        employeeFullFields: permissions.employeeFullFields ?? null,
+      };
+    });
   }
 
   maskKey(key: string): string {
@@ -38,11 +44,15 @@ export class ApiAccessService {
     return key.slice(0, 8) + '••••••••' + key.slice(-4);
   }
 
-  async create(data: CreateApiAccessInput): Promise<{ id: string; apiKey: string; clientName: string; rateLimitPerHour: number; expiresAt: Date | null; createdAt: Date }> {
+  async create(data: CreateApiAccessInput): Promise<{ id: string; apiKey: string; clientName: string; rateLimitPerHour: number; expiresAt: Date | null; createdAt: Date; employeeFullFields: string[] | null }> {
     const name = data.clientName.trim();
     if (!name) throw errors.badRequest('Client name is required');
     const rateLimit = Math.max(1, Math.min(10000, data.rateLimitPerHour ?? 1000));
     const apiKey = this.generateKey();
+    const permissions =
+      data.employeeFullFields?.length ?
+        ({ employeeFullFields: data.employeeFullFields } as object)
+      : undefined;
     const record = await prisma.apiAccess.create({
       data: {
         clientName: name,
@@ -50,8 +60,10 @@ export class ApiAccessService {
         isActive: true,
         rateLimitPerHour: rateLimit,
         expiresAt: data.expiresAt ?? null,
+        permissions: permissions ?? undefined,
       },
     });
+    const perms = (record.permissions as { employeeFullFields?: string[] } | null) ?? {};
     return {
       id: record.id,
       apiKey: record.apiKey,
@@ -59,6 +71,7 @@ export class ApiAccessService {
       rateLimitPerHour: record.rateLimitPerHour,
       expiresAt: record.expiresAt,
       createdAt: record.createdAt,
+      employeeFullFields: perms.employeeFullFields ?? null,
     };
   }
 
@@ -75,6 +88,17 @@ export class ApiAccessService {
     const existing = await prisma.apiAccess.findUnique({ where: { id } });
     if (!existing) throw errors.notFound('API access');
     await prisma.apiAccess.delete({ where: { id } });
+  }
+
+  /** Get employee full API fields allowed for this API key (from permissions). Null = use global setting. */
+  async getEmployeeFullFieldsForKey(apiAccessId: string): Promise<string[] | null> {
+    const record = await prisma.apiAccess.findUnique({
+      where: { id: apiAccessId },
+      select: { permissions: true },
+    });
+    const permissions = (record?.permissions as { employeeFullFields?: string[] } | null) ?? {};
+    const fields = permissions.employeeFullFields;
+    return fields?.length ? fields : null;
   }
 
   /** Validate API key and return record if valid and within rate limit. */

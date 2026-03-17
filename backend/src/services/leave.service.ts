@@ -265,6 +265,156 @@ export class LeaveService {
     return this.toRequestDto(updated!);
   }
 
+  /** All leave requests (super_admin) */
+  async listAllRequests(filters: { status?: string; employeeId?: string; from?: string; to?: string; limit?: number }) {
+    const where: { status?: string; employeeId?: string; startDate?: { gte?: Date; lte?: Date } } = {};
+    if (filters.status && ['pending', 'approved', 'rejected', 'cancelled'].includes(filters.status)) where.status = filters.status;
+    if (filters.employeeId) where.employeeId = filters.employeeId;
+    if (filters.from || filters.to) {
+      where.startDate = {};
+      if (filters.from) where.startDate.gte = new Date(filters.from);
+      if (filters.to) where.startDate.lte = new Date(filters.to);
+    }
+    const list = await prisma.leaveRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(100, filters.limit ?? 50),
+      include: {
+        employee: {
+          select: { employeeCode: true, firstName: true, lastName: true, designation: true, departmentId: true },
+        },
+      },
+    });
+    return list.map((r) => this.toRequestDto(r));
+  }
+
+  /** Calendar events: approved leave in date range (super_admin) */
+  async getCalendarEvents(from: string, to: string, employeeId?: string) {
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+    const where: { status: string; endDate: { gte: Date }; startDate: { lte: Date }; employeeId?: string } = {
+      status: 'approved',
+      endDate: { gte: fromDate },
+      startDate: { lte: toDate },
+    };
+    if (employeeId) where.employeeId = employeeId;
+    const list = await prisma.leaveRequest.findMany({
+      where,
+      orderBy: { startDate: 'asc' },
+      include: { employee: { select: { employeeCode: true, firstName: true, lastName: true } } },
+    });
+    return list.map((r) => ({
+      id: r.id,
+      employeeId: r.employeeId,
+      employeeName: `${r.employee.firstName} ${r.employee.lastName}`.trim(),
+      employeeCode: r.employee.employeeCode,
+      leaveType: r.leaveType,
+      startDate: r.startDate.toISOString().slice(0, 10),
+      endDate: r.endDate.toISOString().slice(0, 10),
+      totalDays: r.totalDays,
+      status: r.status,
+    }));
+  }
+
+  /** All leave balances (super_admin) */
+  async listAllBalances(year?: number, employeeId?: string) {
+    const y = year ?? new Date().getFullYear();
+    const where: { year: number; employeeId?: string } = { year: y };
+    if (employeeId) where.employeeId = employeeId;
+    const list = await prisma.leaveBalance.findMany({
+      where,
+      orderBy: [{ employeeId: 'asc' }, { leaveType: 'asc' }],
+      include: { employee: { select: { employeeCode: true, firstName: true, lastName: true } } },
+    });
+    return list.map((b) => ({
+      id: b.id,
+      employeeId: b.employeeId,
+      employeeCode: b.employee.employeeCode,
+      employeeName: `${b.employee.firstName} ${b.employee.lastName}`.trim(),
+      leaveType: b.leaveType,
+      year: b.year,
+      openingBalance: b.openingBalance,
+      credited: b.credited,
+      taken: b.taken,
+      closingBalance: b.closingBalance,
+      lastUpdated: b.lastUpdated.toISOString(),
+    }));
+  }
+
+  /** Set or update balance for an employee (super_admin) */
+  async upsertBalance(employeeId: string, leaveType: string, year: number, openingBalance: number, credited?: number) {
+    const emp = await prisma.employee.findUnique({ where: { employeeCode: employeeId } });
+    if (!emp) throw errors.notFound('Employee');
+    if (!LEAVE_TYPES.includes(leaveType as LeaveType)) throw errors.badRequest('Invalid leave type');
+    const cred = credited ?? 0;
+    const existing = await prisma.leaveBalance.findUnique({
+      where: { employeeId_leaveType_year: { employeeId, leaveType, year } },
+    });
+    const taken = existing?.taken ?? 0;
+    const closing = openingBalance + cred - taken;
+    const balance = await prisma.leaveBalance.upsert({
+      where: { employeeId_leaveType_year: { employeeId, leaveType, year } },
+      create: { employeeId, leaveType, year, openingBalance, credited: cred, taken, closingBalance: closing },
+      update: { openingBalance, credited: cred, closingBalance: closing, lastUpdated: new Date() },
+    });
+    return {
+      id: balance.id,
+      employeeId: balance.employeeId,
+      leaveType: balance.leaveType,
+      year: balance.year,
+      openingBalance: balance.openingBalance,
+      credited: balance.credited,
+      taken: balance.taken,
+      closingBalance: balance.closingBalance,
+      lastUpdated: balance.lastUpdated.toISOString(),
+    };
+  }
+
+  /** Leave policy CRUD (super_admin) */
+  async listPolicies() {
+    const list = await prisma.leavePolicy.findMany({ orderBy: { leaveType: 'asc' } });
+    return list.map((p) => ({
+      id: p.id,
+      leaveType: p.leaveType,
+      name: p.name,
+      defaultDaysPerYear: p.defaultDaysPerYear,
+      description: p.description,
+      isPaid: p.isPaid,
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+    }));
+  }
+
+  async createPolicy(data: { leaveType: string; name: string; defaultDaysPerYear: number; description?: string; isPaid?: boolean }) {
+    const existing = await prisma.leavePolicy.findUnique({ where: { leaveType: data.leaveType } });
+    if (existing) throw errors.conflict('Leave type already exists');
+    const policy = await prisma.leavePolicy.create({
+      data: {
+        leaveType: data.leaveType.trim(),
+        name: data.name.trim(),
+        defaultDaysPerYear: Math.max(0, data.defaultDaysPerYear),
+        description: data.description?.trim() || null,
+        isPaid: data.isPaid ?? true,
+      },
+    });
+    return { id: policy.id, leaveType: policy.leaveType, name: policy.name, defaultDaysPerYear: policy.defaultDaysPerYear, description: policy.description, isPaid: policy.isPaid, createdAt: policy.createdAt.toISOString(), updatedAt: policy.updatedAt.toISOString() };
+  }
+
+  async updatePolicy(id: number, data: { name?: string; defaultDaysPerYear?: number; description?: string; isPaid?: boolean }) {
+    const policy = await prisma.leavePolicy.findUnique({ where: { id } });
+    if (!policy) throw errors.notFound('Leave policy');
+    const updated = await prisma.leavePolicy.update({
+      where: { id },
+      data: {
+        ...(data.name != null && { name: data.name.trim() }),
+        ...(data.defaultDaysPerYear != null && { defaultDaysPerYear: Math.max(0, data.defaultDaysPerYear) }),
+        ...(data.description !== undefined && { description: data.description?.trim() || null }),
+        ...(data.isPaid !== undefined && { isPaid: data.isPaid }),
+      },
+    });
+    return { id: updated.id, leaveType: updated.leaveType, name: updated.name, defaultDaysPerYear: updated.defaultDaysPerYear, description: updated.description, isPaid: updated.isPaid, createdAt: updated.createdAt.toISOString(), updatedAt: updated.updatedAt.toISOString() };
+  }
+
   private toRequestDto(r: {
     id: string;
     employeeId: string;

@@ -53,11 +53,10 @@ export async function getRequestById(req: Request, res: Response, next: NextFunc
 
 export async function applyLeave(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const employeeId = req.user?.employeeId;
-    if (!employeeId) {
-      next(errors.unauthorized('Employee not linked'));
-      return;
-    }
+    const currentEmployeeId = req.user?.employeeId;
+    const roleName = req.user?.roleName;
+    const canApplyOnBehalf = roleName === 'super_admin' || roleName === 'hr_admin';
+
     const body = req.body as {
       leaveType?: string;
       startDate?: string;
@@ -65,7 +64,28 @@ export async function applyLeave(req: Request, res: Response, next: NextFunction
       totalDays?: number;
       reason?: string;
       documentUrl?: string;
+      employeeId?: string;
     };
+
+    let targetEmployeeId: string;
+    if (body.employeeId && canApplyOnBehalf) {
+      if (roleName === 'super_admin' && body.employeeId === currentEmployeeId) {
+        next(errors.badRequest('Super admin cannot apply leave for themselves. Please select another employee.'));
+        return;
+      }
+      targetEmployeeId = body.employeeId;
+    } else {
+      if (!currentEmployeeId) {
+        next(errors.unauthorized('Employee not linked'));
+        return;
+      }
+      if (roleName === 'super_admin') {
+        next(errors.badRequest('Super admin must select an employee to apply leave for.'));
+        return;
+      }
+      targetEmployeeId = currentEmployeeId;
+    }
+
     const startDate = body.startDate ? new Date(body.startDate) : undefined;
     const endDate = body.endDate ? new Date(body.endDate) : undefined;
     if (!body.leaveType || !startDate || !endDate) {
@@ -73,7 +93,7 @@ export async function applyLeave(req: Request, res: Response, next: NextFunction
       return;
     }
     const totalDays = body.totalDays ?? (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000) + 1;
-    const record = await leaveService.apply(employeeId, {
+    const record = await leaveService.apply(targetEmployeeId, {
       leaveType: body.leaveType,
       startDate,
       endDate,
@@ -161,6 +181,106 @@ export async function rejectLeave(req: Request, res: Response, next: NextFunctio
     }
     const record = await leaveService.reject(id, userId, employeeId ?? '', roleName, body.remarks);
     sendSuccess(res, record, 'Leave rejected');
+  } catch (e) {
+    next(e);
+  }
+}
+
+// --- Super admin: all requests, calendar, all balances, upsert balance, policies ---
+
+export async function listAllRequests(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const status = req.query.status as string | undefined;
+    const employeeId = req.query.employeeId as string | undefined;
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+    const list = await leaveService.listAllRequests({ status, employeeId, from, to });
+    sendSuccess(res, list);
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function getCalendarEvents(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const from = req.query.from as string;
+    const to = req.query.to as string;
+    const employeeId = req.query.employeeId as string | undefined;
+    if (!from || !to) {
+      next(errors.badRequest('from and to query params (YYYY-MM-DD) are required'));
+      return;
+    }
+    const events = await leaveService.getCalendarEvents(from, to, employeeId);
+    sendSuccess(res, events);
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function listAllBalances(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const year = req.query.year ? parseInt(String(req.query.year), 10) : undefined;
+    const employeeId = req.query.employeeId as string | undefined;
+    const list = await leaveService.listAllBalances(year, employeeId);
+    sendSuccess(res, list);
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function upsertBalance(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const body = req.body as { employeeId: string; leaveType: string; year: number; openingBalance: number; credited?: number };
+    if (!body.employeeId || !body.leaveType || body.year == null || body.openingBalance == null) {
+      next(errors.badRequest('employeeId, leaveType, year and openingBalance are required'));
+      return;
+    }
+    const record = await leaveService.upsertBalance(
+      body.employeeId,
+      body.leaveType,
+      body.year,
+      body.openingBalance,
+      body.credited,
+    );
+    sendSuccess(res, record, 'Balance updated');
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function listPolicies(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const list = await leaveService.listPolicies();
+    sendSuccess(res, list);
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function createPolicy(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const body = req.body as { leaveType: string; name: string; defaultDaysPerYear: number; description?: string; isPaid?: boolean };
+    if (!body.leaveType || !body.name || body.defaultDaysPerYear == null) {
+      next(errors.badRequest('leaveType, name and defaultDaysPerYear are required'));
+      return;
+    }
+    const policy = await leaveService.createPolicy(body);
+    sendSuccess(res, policy, 'Policy created');
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function updatePolicy(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      next(errors.badRequest('Invalid policy ID'));
+      return;
+    }
+    const body = req.body as { name?: string; defaultDaysPerYear?: number; description?: string; isPaid?: boolean };
+    const policy = await leaveService.updatePolicy(id, body);
+    sendSuccess(res, policy, 'Policy updated');
   } catch (e) {
     next(e);
   }

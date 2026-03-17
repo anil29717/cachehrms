@@ -70,7 +70,7 @@ export function DepartmentDetail() {
           <ArrowLeft className="w-4 h-4" />
           Departments
         </Link>
-        {isAdmin && (
+        {canManage && (
           <button
             type="button"
             onClick={() => navigate(`/departments/${id}/edit`)}

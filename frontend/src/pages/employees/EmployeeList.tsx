@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Users, Plus, Search } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
+import { canManageEmployees } from '../../utils/permissions';
 import { api } from '../../api/client';
 
 type EmployeeItem = {
@@ -22,7 +23,7 @@ type Res = { success: true; data: EmployeeItem[]; meta?: { total: number; page: 
 
 export function EmployeeList() {
   const roleName = useAuthStore((s) => s.user?.roleName);
-  const canAdd = roleName === 'super_admin' || roleName === 'hr_admin';
+  const canAdd = canManageEmployees(roleName);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [searchSubmitted, setSearchSubmitted] = useState('');

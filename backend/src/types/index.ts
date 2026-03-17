@@ -27,12 +27,21 @@ export interface JwtPayload {
   exp?: number;
 }
 
+export type ScopePermissionFlags = {
+  canView: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+};
+
 export interface RequestUser {
   userId: string;
   email: string;
   roleId: number;
   roleName: string;
   employeeId: string;
+  /** Set by middleware for hr_admin: scopeId -> flags. Super Admin has full access and may have undefined. */
+  scopePermissions?: Record<string, ScopePermissionFlags>;
 }
 
 declare global {

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
+import { requireScopeView } from '../middleware/requireScope.js';
 import { requireHROrAdmin } from '../middleware/requireHROrAdmin.js';
 import {
   listSalaryStructures,
@@ -16,6 +17,7 @@ import {
 const router = Router();
 
 router.use(authMiddleware);
+router.use(requireScopeView('payroll'));
 
 router.get('/my-payslips', (req, res, next) => getMyPayslips(req, res, next));
 router.get('/payslip/:id', (req, res, next) => getPayslip(req, res, next));

@@ -51,4 +51,21 @@ export const api = {
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
 
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+
+  /** Multipart upload (do not set Content-Type; browser sets boundary) */
+  uploadFile: async <T>(path: string, formData: FormData): Promise<T> => {
+    const url = buildUrl(path);
+    const token = localStorage.getItem('hrms-auth')
+      ? (JSON.parse(localStorage.getItem('hrms-auth') ?? '{}')?.state?.accessToken as string)
+      : null;
+    const headers: HeadersInit = { ...(token && { Authorization: `Bearer ${token}` }) };
+    const res = await fetch(url, { method: 'POST', body: formData, headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data?.error?.message ?? res.statusText) as Error & { code?: string };
+      (err as Error & { code: string }).code = data?.error?.code;
+      throw err;
+    }
+    return data as T;
+  },
 };

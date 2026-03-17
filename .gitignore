@@ -10,6 +10,10 @@ node_modules/
 dist/
 build/
 
+# Uploads (onboarding documents, etc.)
+uploads/
+backend/uploads/
+
 # Prisma
 backend/prisma/migrations/**/migration_lock.toml
 

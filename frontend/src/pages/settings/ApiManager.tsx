@@ -1,8 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
-import { Key, Plus, Copy, Download, Trash2, ShieldOff, FileText } from 'lucide-react';
+import { Key, Plus, Copy, Download, Trash2, ShieldOff, FileText, ListChecks } from 'lucide-react';
 import { api } from '../../api/client';
+
+const FIELD_LABELS: Record<string, string> = {
+  id: 'ID',
+  employeeCode: 'Emp ID',
+  firstName: 'First name',
+  lastName: 'Last name',
+  fullName: 'Full name',
+  email: 'Email',
+  phone: 'Phone',
+  designation: 'Job title',
+  externalRole: 'Role',
+  workLocation: 'Location',
+  reportingTo: 'Reporting ID',
+  reportingManagerName: 'Reporting manager',
+  defaultPassword: 'Default password',
+  dateOfJoining: 'Date of joining',
+  employmentType: 'Employment type',
+  status: 'Status',
+  departmentName: 'Department name',
+  departmentCode: 'Department code',
+  departmentId: 'Department ID',
+  dateOfBirth: 'Date of birth',
+  gender: 'Gender',
+  profileImage: 'Profile image',
+  createdAt: 'Created at',
+  updatedAt: 'Updated at',
+  personalInfo: 'Personal info',
+  bankDetail: 'Bank details',
+  emergencyContacts: 'Emergency contacts',
+  educations: 'Education',
+  experiences: 'Experience',
+  documents: 'Documents',
+  externalSubRole: 'Subadmin title',
+};
 
 type ApiAccessItem = {
   id: string;
@@ -13,6 +47,7 @@ type ApiAccessItem = {
   expiresAt: string | null;
   lastUsedAt: string | null;
   createdAt: string;
+  employeeFullFields?: string[] | null;
 };
 
 type CreatedKey = {
@@ -22,6 +57,7 @@ type CreatedKey = {
   rateLimitPerHour: number;
   expiresAt: string | null;
   createdAt: string;
+  employeeFullFields?: string[] | null;
 };
 
 type ApiAccessLogItem = {
@@ -50,8 +86,9 @@ API_KEY=${apiKey}
 # Example (fetch employees list):
 # curl -H "X-API-Key: ${apiKey}" "${FULL_BASE}/integration/employees"
 
-# Example (fetch one employee by id or code):
-# curl -H "X-API-Key: ${apiKey}" "${FULL_BASE}/integration/employees/EMP-2026-0001"
+# Example (single endpoint - fetch one employee with fields you selected for this key):
+# curl -H "X-API-Key: ${apiKey}" "${FULL_BASE}/integration/employee?code=EMP-2026-0001"
+# or ?id=uuid or ?email=user@company.com
 `;
   const blob = new Blob([content], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
@@ -70,6 +107,9 @@ export function ApiManager() {
   const [createdKey, setCreatedKey] = useState<CreatedKey | null>(null);
   const [logsPage, setLogsPage] = useState(1);
   const [logsFilter, setLogsFilter] = useState<string>('');
+  const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set());
+  const [createKeySelectedFields, setCreateKeySelectedFields] = useState<Set<string>>(new Set());
+  const [subadminTitleInput, setSubadminTitleInput] = useState('');
 
   const { data: list, isLoading, error } = useQuery({
     queryKey: ['api-access'],
@@ -96,8 +136,79 @@ export function ApiManager() {
   const logsLimit = logsData?.meta?.limit ?? 20;
   const logsTotalPages = Math.ceil(logsTotal / logsLimit) || 1;
 
+  const { data: employeeFieldsResp } = useQuery({
+    queryKey: ['api-access-employee-fields'],
+    queryFn: () =>
+      api
+        .get<{ success: true; data: { availableFields: string[]; configuredFields: string[] | null; description: string } }>(
+          '/settings/api-access/employee-fields'
+        )
+        .then((r) => r.data),
+  });
+
+  const { data: subadminTitlesResp } = useQuery({
+    queryKey: ['subadmin-titles-settings'],
+    queryFn: () =>
+      api
+        .get<{ titles: string[] }>('/settings/api-access/subadmin-titles')
+        .then((r) => r.data),
+  });
+  const subadminTitles = subadminTitlesResp?.titles ?? [];
+
+  const saveSubadminTitlesMutation = useMutation({
+    mutationFn: (titles: string[]) =>
+      api
+        .put<{ success: true; data: { titles: string[] } }>('/settings/api-access/subadmin-titles', { titles })
+        .then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subadmin-titles-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['subadmin-titles'] });
+      toast.success('Subadmin titles saved');
+      setSubadminTitleInput('');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const employeeFieldsData = employeeFieldsResp?.data;
+  const availableFields = employeeFieldsData?.availableFields ?? [];
+  const configuredFields = employeeFieldsData?.configuredFields ?? null;
+
+  useEffect(() => {
+    if (!employeeFieldsResp?.data?.availableFields?.length) return;
+    const d = employeeFieldsResp.data;
+    setSelectedFields(new Set(d.configuredFields?.length ? d.configuredFields : d.availableFields));
+  }, [employeeFieldsResp]);
+
+  useEffect(() => {
+    if (!showCreate) {
+      setCreateKeySelectedFields(new Set());
+      return;
+    }
+    if (availableFields.length === 0) return;
+    const defaultKeyFields = [
+      'id', 'employeeCode', 'firstName', 'lastName', 'fullName', 'email',
+      'designation', 'workLocation', 'reportingManagerName', 'reportingTo', 'defaultPassword',
+    ].filter((f) => availableFields.includes(f));
+    setCreateKeySelectedFields(new Set(defaultKeyFields.length ? defaultKeyFields : availableFields));
+  }, [showCreate, availableFields.join(',')]);
+
+  const setEmployeeFieldsMutation = useMutation({
+    mutationFn: (fields: string[]) =>
+      api.put<{ success: true; data: { configuredFields: string[] | null }; message?: string }>(
+        '/settings/api-access/employee-fields',
+        { fields }
+      ).then((r) => r.data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['api-access-employee-fields'] });
+      const list = data.configuredFields?.length ? data.configuredFields : availableFields;
+      setSelectedFields(new Set(list));
+      toast.success('Employee API fields updated. Only selected fields will be returned.');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const createMutation = useMutation({
-    mutationFn: (body: { clientName: string; rateLimitPerHour: number }) =>
+    mutationFn: (body: { clientName: string; rateLimitPerHour: number; employeeFullFields?: string[] }) =>
       api
         .post<{ success: true; data: CreatedKey; message: string }>('/settings/api-access', body)
         .then((r) => r.data),
@@ -107,6 +218,7 @@ export function ApiManager() {
       setShowCreate(false);
       setClientName('');
       setRateLimitPerHour(1000);
+      setCreateKeySelectedFields(new Set());
       toast.success('API key created. Copy it now — it won’t be shown again.');
     },
     onError: (err: Error) => toast.error(err.message),
@@ -140,7 +252,12 @@ export function ApiManager() {
       toast.error('Client name is required');
       return;
     }
-    createMutation.mutate({ clientName: name, rateLimitPerHour: Math.max(1, Math.min(10000, rateLimitPerHour)) });
+    const fields = createKeySelectedFields.size > 0 ? Array.from(createKeySelectedFields) : undefined;
+    createMutation.mutate({
+      clientName: name,
+      rateLimitPerHour: Math.max(1, Math.min(10000, rateLimitPerHour)),
+      employeeFullFields: fields,
+    });
   }
 
   function copyKey(key: string) {
@@ -245,6 +362,47 @@ export function ApiManager() {
               />
             </div>
           </div>
+          {availableFields.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-gray-700 dark:text-dark-textSecondary mb-2">
+                Tick fields this key can access (GET .../employees/:id/full). Leave all unchecked to use global setting.
+              </p>
+              <div className="flex flex-wrap gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateKeySelectedFields(new Set(availableFields))}
+                  className="text-sm px-2 py-1 rounded border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-bg"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreateKeySelectedFields(new Set())}
+                  className="text-sm px-2 py-1 rounded border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-bg"
+                >
+                  Clear all
+                </button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-200 dark:border-dark-border rounded-lg">
+                {availableFields.map((field) => (
+                  <label key={field} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={createKeySelectedFields.has(field)}
+                      onChange={(e) => {
+                        const next = new Set(createKeySelectedFields);
+                        if (e.target.checked) next.add(field);
+                        else next.delete(field);
+                        setCreateKeySelectedFields(next);
+                      }}
+                      className="rounded border-gray-300 dark:border-dark-border"
+                    />
+                    <span className="text-gray-700 dark:text-dark-text">{FIELD_LABELS[field] ?? field}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex gap-2 mt-4">
             <button
               type="submit"
@@ -357,6 +515,120 @@ export function ApiManager() {
             No API keys yet. Create one to let external apps fetch employee data.
           </div>
         )}
+      </div>
+
+      <div className="mt-8 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border">
+          <h2 className="font-semibold text-gray-900 dark:text-dark-text flex items-center gap-2">
+            <ListChecks className="w-5 h-5" />
+            Employee full API — fields exposed
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-dark-textSecondary mt-1">
+            Choose which fields are returned by GET /employees/:id/full and GET /integration/employees/:id/full. End users cannot select fields. Leave all unchecked to return all fields.
+          </p>
+        </div>
+        <div className="p-4">
+          {availableFields.length > 0 && (
+            <>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedFields(new Set(availableFields))}
+                  className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-bg"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedFields(new Set())}
+                  className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-bg"
+                >
+                  Clear all (expose all fields)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmployeeFieldsMutation.mutate(Array.from(selectedFields))}
+                  disabled={setEmployeeFieldsMutation.isPending}
+                  className="text-sm px-3 py-1.5 rounded-lg bg-light-primary dark:bg-dark-primary text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {setEmployeeFieldsMutation.isPending ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
+                {availableFields.map((field) => (
+                  <label key={field} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedFields.has(field)}
+                      onChange={(e) => {
+                        const next = new Set(selectedFields);
+                        if (e.target.checked) next.add(field);
+                        else next.delete(field);
+                        setSelectedFields(next);
+                      }}
+                      className="rounded border-gray-300 dark:border-dark-border"
+                    />
+                    <span className="text-gray-700 dark:text-dark-text font-mono">{field}</span>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card overflow-hidden">
+        <div className="p-4 border-b border-gray-200 dark:border-dark-border">
+          <h2 className="font-semibold text-gray-900 dark:text-dark-text">Subadmin titles (CTO/CFO/...)</h2>
+          <p className="text-sm text-gray-500 dark:text-dark-textSecondary mt-1">
+            These are used when employee Role is <span className="font-mono">subadmin</span>.
+          </p>
+        </div>
+        <div className="p-4">
+          <div className="flex flex-wrap gap-2 mb-3">
+            <input
+              type="text"
+              value={subadminTitleInput}
+              onChange={(e) => setSubadminTitleInput(e.target.value)}
+              placeholder="e.g. CTO"
+              className="px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const t = subadminTitleInput.trim();
+                if (!t) return;
+                const next = Array.from(new Set([...subadminTitles, t]));
+                saveSubadminTitlesMutation.mutate(next);
+              }}
+              disabled={saveSubadminTitlesMutation.isPending}
+              className="px-3 py-2 rounded-lg bg-light-primary dark:bg-dark-primary text-white text-sm disabled:opacity-50"
+            >
+              Add
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {subadminTitles.map((t) => (
+              <span
+                key={t}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-300 dark:border-dark-border text-sm"
+              >
+                <span className="font-mono">{t}</span>
+                <button
+                  type="button"
+                  onClick={() => saveSubadminTitlesMutation.mutate(subadminTitles.filter((x) => x !== t))}
+                  disabled={saveSubadminTitlesMutation.isPending}
+                  className="text-red-600 dark:text-red-400 hover:underline text-xs"
+                >
+                  Remove
+                </button>
+              </span>
+            ))}
+            {subadminTitles.length === 0 && (
+              <p className="text-sm text-gray-500 dark:text-dark-textSecondary">No titles yet.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="mt-8">
@@ -484,8 +756,10 @@ export function ApiManager() {
       <div className="mt-6 p-4 rounded-lg bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border">
         <h3 className="font-medium text-gray-900 dark:text-dark-text mb-2">Integration endpoints</h3>
         <ul className="text-sm text-gray-600 dark:text-dark-textSecondary space-y-1 font-mono">
+          <li>GET {API_BASE}/integration/employee?code=... — One endpoint: pass ?code=EMP-2026-0001, ?id=uuid, or ?email=... to get that employee with the fields you selected for this key</li>
           <li>GET {API_BASE}/integration/employees — List all active employees</li>
-          <li>GET {API_BASE}/integration/employees/:id — Get employee by ID (uuid) or employee code (e.g. EMP-2026-0001)</li>
+          <li>GET {API_BASE}/integration/employees/:id — Get employee by ID or code</li>
+          <li>GET {API_BASE}/integration/employees/:id/full — Full payload (fields from global setting)</li>
         </ul>
       </div>
     </div>

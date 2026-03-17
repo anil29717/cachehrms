@@ -10,3 +10,12 @@
     @apply bg-white text-gray-900 dark:bg-dark-bg dark:text-dark-text;
   }
 }
+
+/* Hide scrollbar but keep scroll behavior */
+.sidebar-nav-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.sidebar-nav-scroll::-webkit-scrollbar {
+  display: none;
+}

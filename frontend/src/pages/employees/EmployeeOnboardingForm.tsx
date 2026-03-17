@@ -26,6 +26,8 @@ export function EmployeeOnboardingForm() {
   const [departmentId, setDepartmentId] = useState<number | ''>('');
   const [designation, setDesignation] = useState('');
   const [reportingTo, setReportingTo] = useState('');
+  const [externalRole, setExternalRole] = useState('employee');
+  const [externalSubRole, setExternalSubRole] = useState('');
   const [dateOfJoining, setDateOfJoining] = useState(() => new Date().toISOString().slice(0, 10));
   const [employmentType, setEmploymentType] = useState('full_time');
   const [workLocation, setWorkLocation] = useState('');
@@ -33,6 +35,23 @@ export function EmployeeOnboardingForm() {
   const { data: departments } = useQuery({
     queryKey: ['departments'],
     queryFn: () => api.get<{ success: true; data: { id: number; name: string }[] }>('/departments').then((r) => r.data),
+  });
+  const { data: employeesList } = useQuery({
+    queryKey: ['employees-list'],
+    queryFn: () => api.get<{ success: true; data: { id: string; employeeCode: string; firstName: string; lastName: string }[] }>('/employees', { limit: '500' }).then((r) => r.data),
+  });
+  const { data: designationsList } = useQuery({
+    queryKey: ['employees-designations'],
+    queryFn: () => api.get<{ success: true; data: string[] }>('/employees/designations').then((r) => r.data),
+  });
+  const { data: workLocationsList } = useQuery({
+    queryKey: ['employees-work-locations'],
+    queryFn: () => api.get<{ success: true; data: string[] }>('/employees/work-locations').then((r) => r.data),
+  });
+  const { data: subadminTitlesResp } = useQuery({
+    queryKey: ['subadmin-titles'],
+    queryFn: () =>
+      api.get<{ success: true; data: { titles: string[] } }>('/settings/api-access/subadmin-titles').then((r) => r.data),
   });
 
   const createMutation = useMutation({
@@ -69,14 +88,21 @@ export function EmployeeOnboardingForm() {
       ...(departmentId !== '' && { departmentId: Number(departmentId) }),
       ...(designation.trim() && { designation: designation.trim() }),
       ...(reportingTo.trim() && { reportingTo: reportingTo.trim() }),
+      externalRole,
+      ...(externalRole === 'subadmin' && externalSubRole.trim() && { externalSubRole: externalSubRole.trim() }),
       dateOfJoining: dateOfJoining || new Date().toISOString().slice(0, 10),
       employmentType,
-      ...(workLocation.trim() && { workLocation: workLocation.trim() }),
+      ...((workLocation === '__other__' ? workLocationOther : workLocation).trim() && { workLocation: (workLocation === '__other__' ? workLocationOther : workLocation).trim() }),
     });
   }
 
   const loading = createMutation.isPending;
   const deptList = departments ?? [];
+  const employeeOptions = Array.isArray(employeesList) ? employeesList : [];
+  const designationOptions = Array.isArray(designationsList) ? designationsList : [];
+  const workLocationOptions = Array.isArray(workLocationsList) ? workLocationsList : [];
+  const subadminTitles = subadminTitlesResp?.titles ?? [];
+  const [workLocationOther, setWorkLocationOther] = useState('');
 
   return (
     <div>
@@ -236,36 +262,100 @@ export function EmployeeOnboardingForm() {
                 Designation
               </label>
               <input
+                list="onboarding-designation-list"
                 type="text"
                 value={designation}
                 onChange={(e) => setDesignation(e.target.value)}
-                placeholder="e.g. Software Engineer"
+                placeholder="Select or type new designation"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text"
               />
+              <datalist id="onboarding-designation-list">
+                {designationOptions.map((d) => (
+                  <option key={d} value={d} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textSecondary mb-1">
-                Reporting to (employee code)
+                Reporting to
               </label>
-              <input
-                type="text"
+              <select
                 value={reportingTo}
                 onChange={(e) => setReportingTo(e.target.value)}
-                placeholder="e.g. EMP-2026-0001"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text"
-              />
+              >
+                <option value="">— None —</option>
+                {employeeOptions.map((e) => (
+                  <option key={e.id} value={e.employeeCode}>{e.firstName} {e.lastName} ({e.employeeCode})</option>
+                ))}
+              </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-dark-textSecondary mb-1">
+                Role
+              </label>
+              <select
+                value={externalRole}
+                onChange={(e) => setExternalRole(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text"
+              >
+                {['employee', 'manager', 'admin', 'subadmin'].map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {externalRole === 'subadmin' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-dark-textSecondary mb-1">
+                  Subadmin title
+                </label>
+                <select
+                  value={externalSubRole}
+                  onChange={(e) => setExternalSubRole(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text"
+                >
+                  <option value="">— Select —</option>
+                  {subadminTitles.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-dark-textSecondary">
+                  Manage titles in Settings → API Manager.
+                </p>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-dark-textSecondary mb-1">
                 Work location
               </label>
-              <input
-                type="text"
-                value={workLocation}
-                onChange={(e) => setWorkLocation(e.target.value)}
-                placeholder="e.g. Head Office, Remote"
+              <select
+                value={workLocation && workLocationOptions.includes(workLocation) ? workLocation : workLocation ? '__other__' : ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '__other__') setWorkLocation('__other__');
+                  else setWorkLocation(v);
+                }}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text"
-              />
+              >
+                <option value="">— None —</option>
+                {workLocationOptions.map((loc) => (
+                  <option key={loc} value={loc}>{loc}</option>
+                ))}
+                <option value="__other__">— Other (type below) —</option>
+              </select>
+              {(workLocation === '__other__' || (workLocation && !workLocationOptions.includes(workLocation))) && (
+                <input
+                  type="text"
+                  value={workLocation === '__other__' ? workLocationOther : workLocation}
+                  onChange={(e) => (workLocation === '__other__' ? setWorkLocationOther(e.target.value) : setWorkLocation(e.target.value))}
+                  placeholder="Enter work location"
+                  className="mt-2 w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text"
+                />
+              )}
             </div>
           </div>
         </section>

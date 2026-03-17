@@ -118,7 +118,7 @@ export function DepartmentList() {
         {departments.length === 0 && !isLoading && (
           <div className="py-12 text-center text-gray-500 dark:text-dark-textSecondary">
             <Building2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            No departments yet. {isAdmin && 'Add one to get started.'}
+            No departments yet. {canManage && 'Add one to get started.'}
           </div>
         )}
       </div>

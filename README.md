@@ -27,6 +27,10 @@ npm run dev
 
 API runs at `http://localhost:4000/api/v1`. Default login after seed: **admin@cachedigitech.com** / **Admin@123**.
 
+## Integration employee role
+
+Employees have an `externalRole` field for external integrations (not HRMS RBAC). Allowed values: `employee | manager | admin | subadmin`.
+
 ### 2. Frontend
 
 ```bash

@@ -347,7 +347,7 @@ export async function getDocumentFile(req: Request, res: Response, next: NextFun
       next(errors.forbidden('Provide ?token= for candidate access or log in as HR'));
       return;
     }
-    const { path: filePath, fileName } = await onboardingService.getDocumentForDownload(documentId, token, isHr);
+    const { path: filePath, fileName } = await onboardingService.getDocumentForDownload(documentId, token ?? undefined, !!isHr);
     const safeName = fileName.replace(/[^\w.-]/g, '_');
     res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
     res.sendFile(filePath, (err) => {

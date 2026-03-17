@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/database.js';
 import {
   getOnboardingUploadDir,
@@ -229,7 +230,7 @@ export class OnboardingService {
     const limit = Math.min(100, Math.max(1, query.limit ?? 20));
     const skip = (page - 1) * limit;
 
-    const where: Parameters<typeof prisma.onboarding.findMany>[0]['where'] = {};
+    const where: Prisma.OnboardingWhereInput = {};
     if (query.status?.trim()) where.status = query.status.trim();
     if (query.search?.trim()) {
       const term = `%${query.search.trim()}%`;

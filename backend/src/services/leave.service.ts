@@ -429,13 +429,13 @@ export class LeaveService {
     approverRemarks: string | null;
     documentUrl: string | null;
     createdAt: Date;
-    employee?: { employeeCode?: string; firstName: string; lastName: string; designation?: string; departmentId?: number | null };
+    employee?: { employeeCode?: string; firstName: string; lastName: string; designation?: string | null; departmentId?: number | null };
   }) {
     return {
       id: r.id,
       employeeId: r.employeeId,
       employeeName: r.employee ? `${r.employee.firstName} ${r.employee.lastName}`.trim() : undefined,
-      designation: r.employee?.designation,
+      designation: r.employee?.designation ?? undefined,
       departmentId: r.employee?.departmentId,
       leaveType: r.leaveType,
       startDate: r.startDate.toISOString().slice(0, 10),

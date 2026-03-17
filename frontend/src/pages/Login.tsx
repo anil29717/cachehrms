@@ -217,9 +217,7 @@ export function Login() {
             <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
             <span>Secure login</span>
           </div>
-          <p className="text-center text-xs text-gray-500 dark:text-dark-textSecondary">
-            Default: admin@cachedigitech.com / Admin@123 (after seed)
-          </p>
+          
         </div>
       </div>
     </div>

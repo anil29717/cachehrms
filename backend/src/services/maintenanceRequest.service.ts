@@ -96,18 +96,19 @@ export class MaintenanceRequestService {
 
   async updateStatus(
     id: string,
-    data: { status: string; completedAt?: Date; cost?: number; repairNotes?: string }
+    data: { status?: string; completedAt?: Date; cost?: number; repairNotes?: string }
   ) {
     const existing = await prisma.maintenanceRequest.findUnique({ where: { id } });
     if (!existing) throw errors.notFound('Maintenance request');
-    if (!STATUSES.includes(data.status as (typeof STATUSES)[number])) {
+    const status = data.status ?? existing.status;
+    if (!STATUSES.includes(status as (typeof STATUSES)[number])) {
       throw errors.badRequest('status must be one of: pending, in_progress, completed, cancelled');
     }
-    const completedAt = data.status === 'completed' ? (data.completedAt ?? new Date()) : null;
+    const completedAt = status === 'completed' ? (data.completedAt ?? new Date()) : null;
     const req = await prisma.maintenanceRequest.update({
       where: { id },
       data: {
-        status: data.status,
+        status,
         ...(completedAt != null && { completedAt }),
         ...(data.cost !== undefined && { cost: data.cost }),
         ...(data.repairNotes !== undefined && { repairNotes: data.repairNotes?.trim() || null }),
@@ -117,12 +118,12 @@ export class MaintenanceRequestService {
         employee: { select: { firstName: true, lastName: true } },
       },
     });
-    if (data.status === 'in_progress') {
+    if (status === 'in_progress') {
       await prisma.asset.update({
         where: { id: req.assetId },
         data: { status: 'under_maintenance' },
       });
-    } else if (data.status === 'completed') {
+    } else if (status === 'completed') {
       await prisma.asset.update({
         where: { id: req.assetId },
         data: { status: 'available' },

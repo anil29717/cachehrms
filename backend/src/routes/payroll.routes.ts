@@ -26,7 +26,8 @@ router.get('/salary-structures', requireHROrAdmin, (req, res, next) => listSalar
 router.get('/salary-structures/:employeeId', requireHROrAdmin, (req, res, next) => getSalaryStructure(req, res, next));
 router.put('/salary-structures/:employeeId', requireHROrAdmin, (req, res, next) => upsertSalaryStructure(req, res, next));
 router.post('/salary-structures', requireHROrAdmin, (req, res, next) => {
-  req.params.employeeId = (req.body as { employeeId?: string }).employeeId;
+  const eid = (req.body as { employeeId?: string }).employeeId;
+  req.params.employeeId = eid ?? '';
   return upsertSalaryStructure(req, res, next);
 });
 

@@ -6,7 +6,7 @@ const CONDITIONS = ['good', 'fair', 'poor'] as const;
 
 export class AssetService {
   async list(filters: { categoryId?: number; status?: string; search?: string; limit?: number }) {
-    const where: { categoryId?: number; status?: string; OR?: { name: { contains: string; mode: 'insensitive' }; serialNumber?: { contains: string; mode: 'insensitive' } }[] } = {};
+    const where: { categoryId?: number; status?: string; OR?: Array<{ name?: { contains: string; mode: 'insensitive' }; serialNumber?: { contains: string; mode: 'insensitive' } }> } = {};
     if (filters.categoryId != null) where.categoryId = filters.categoryId;
     if (filters.status && ASSET_STATUSES.includes(filters.status as (typeof ASSET_STATUSES)[number])) where.status = filters.status;
     if (filters.search?.trim()) {

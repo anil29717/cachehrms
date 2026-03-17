@@ -186,7 +186,7 @@ export class AuthService {
       employeeId: user.employeeId,
       type: 'access',
     };
-    return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRY });
+    return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRY } as jwt.SignOptions);
   }
 
   private createRefreshToken(user: { id: string; email: string; roleId: number; role: { name: string }; employeeId: string }): string {
@@ -198,6 +198,6 @@ export class AuthService {
       employeeId: user.employeeId,
       type: 'refresh',
     };
-    return jwt.sign(payload, env.REFRESH_TOKEN_SECRET, { expiresIn: env.REFRESH_TOKEN_EXPIRY });
+    return jwt.sign(payload, env.REFRESH_TOKEN_SECRET, { expiresIn: env.REFRESH_TOKEN_EXPIRY } as jwt.SignOptions);
   }
 }

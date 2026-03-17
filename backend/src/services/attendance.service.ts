@@ -184,32 +184,30 @@ export class AttendanceService {
     const codes = reportees.map((e) => e.employeeCode);
     const attendanceList = await prisma.attendance.findMany({
       where: { employeeId: { in: codes }, date },
-      include: { employee: { select: { firstName: true, lastName: true } } },
+      include: { employee: { select: { employeeCode: true, firstName: true, lastName: true } } },
     });
     const byEmployee = new Map(attendanceList.map((a) => [a.employeeId, a]));
     return reportees.map((e) => {
       const a = byEmployee.get(e.employeeCode);
-      return {
-        employeeId: e.employeeCode,
-        employeeName: `${e.firstName} ${e.lastName}`.trim(),
-        designation: e.designation,
-        date: dateStr,
-        ...(a
-          ? this.toAttendanceDto(a)
-          : {
-              id: null,
-              checkIn: null,
-              checkOut: null,
-              status: 'absent',
-              workingHours: null,
-              overtimeHours: null,
-              lateMinutes: null,
-              checkInIp: null,
-              checkOutIp: null,
-              remarks: null,
-              createdAt: null,
-            }),
-      };
+      const dto = a
+        ? this.toAttendanceDto(a)
+        : {
+            id: null,
+            employeeId: e.employeeCode,
+            date: dateStr,
+            checkIn: null,
+            checkOut: null,
+            status: 'absent',
+            workingHours: null,
+            overtimeHours: null,
+            lateMinutes: null,
+            checkInIp: null,
+            checkOutIp: null,
+            remarks: null,
+            createdAt: null,
+            employeeName: undefined,
+          };
+      return { ...dto, employeeId: e.employeeCode, employeeName: `${e.firstName} ${e.lastName}`.trim(), designation: e.designation, date: dateStr };
     });
   }
 
@@ -224,32 +222,30 @@ export class AttendanceService {
     const codes = employees.map((e) => e.employeeCode);
     const attendanceList = await prisma.attendance.findMany({
       where: { employeeId: { in: codes }, date },
-      include: { employee: { select: { firstName: true, lastName: true } } },
+      include: { employee: { select: { employeeCode: true, firstName: true, lastName: true } } },
     });
     const byEmployee = new Map(attendanceList.map((a) => [a.employeeId, a]));
     return employees.map((e) => {
       const a = byEmployee.get(e.employeeCode);
-      return {
-        employeeId: e.employeeCode,
-        employeeName: `${e.firstName} ${e.lastName}`.trim(),
-        designation: e.designation,
-        date: dateStr,
-        ...(a
-          ? this.toAttendanceDto(a)
-          : {
-              id: null,
-              checkIn: null,
-              checkOut: null,
-              status: 'absent',
-              workingHours: null,
-              overtimeHours: null,
-              lateMinutes: null,
-              checkInIp: null,
-              checkOutIp: null,
-              remarks: null,
-              createdAt: null,
-            }),
-      };
+      const dto = a
+        ? this.toAttendanceDto(a)
+        : {
+            id: null,
+            employeeId: e.employeeCode,
+            date: dateStr,
+            checkIn: null,
+            checkOut: null,
+            status: 'absent',
+            workingHours: null,
+            overtimeHours: null,
+            lateMinutes: null,
+            checkInIp: null,
+            checkOutIp: null,
+            remarks: null,
+            createdAt: null,
+            employeeName: undefined,
+          };
+      return { ...dto, employeeId: e.employeeCode, employeeName: `${e.firstName} ${e.lastName}`.trim(), designation: e.designation, date: dateStr };
     });
   }
 

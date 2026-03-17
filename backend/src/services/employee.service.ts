@@ -97,7 +97,7 @@ export class EmployeeService {
     const limit = Math.min(500, Math.max(1, query.limit ?? 10));
     const skip = (page - 1) * limit;
 
-    const where: Parameters<typeof prisma.employee.findMany>[0]['where'] = {};
+    const where: Prisma.EmployeeWhereInput = {};
     if (query.search?.trim()) {
       const term = `%${query.search.trim()}%`;
       where.OR = [

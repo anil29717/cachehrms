@@ -119,17 +119,17 @@ export async function updateEmployee(req: Request, res: Response, next: NextFunc
       firstName: body.firstName != null ? String(body.firstName) : undefined,
       lastName: body.lastName != null ? String(body.lastName) : undefined,
       email: body.email != null ? String(body.email) : undefined,
-      phone: body.phone !== undefined ? (body.phone ? String(body.phone) : null) : undefined,
+      phone: body.phone !== undefined ? (body.phone ? String(body.phone) : undefined) : undefined,
       dateOfBirth: body.dateOfBirth != null ? String(body.dateOfBirth) : undefined,
-      gender: body.gender !== undefined ? (body.gender ? String(body.gender) : null) : undefined,
-      departmentId: body.departmentId !== undefined ? (body.departmentId != null ? Number(body.departmentId) : null) : undefined,
-      designation: body.designation !== undefined ? (body.designation ? String(body.designation) : null) : undefined,
-      reportingTo: body.reportingTo !== undefined ? (body.reportingTo ? String(body.reportingTo) : null) : undefined,
+      gender: body.gender !== undefined ? (body.gender ? String(body.gender) : undefined) : undefined,
+      departmentId: body.departmentId !== undefined ? (body.departmentId != null ? Number(body.departmentId) : undefined) : undefined,
+      designation: body.designation !== undefined ? (body.designation ? String(body.designation) : undefined) : undefined,
+      reportingTo: body.reportingTo !== undefined ? (body.reportingTo ? String(body.reportingTo) : undefined) : undefined,
       externalRole: body.externalRole != null ? String(body.externalRole) : undefined,
-      externalSubRole: body.externalSubRole !== undefined ? (body.externalSubRole ? String(body.externalSubRole) : null) : undefined,
+      externalSubRole: body.externalSubRole !== undefined ? (body.externalSubRole ? String(body.externalSubRole) : undefined) : undefined,
       dateOfJoining: body.dateOfJoining != null ? String(body.dateOfJoining) : undefined,
       employmentType: body.employmentType != null ? String(body.employmentType) : undefined,
-      workLocation: body.workLocation !== undefined ? (body.workLocation ? String(body.workLocation) : null) : undefined,
+      workLocation: body.workLocation !== undefined ? (body.workLocation ? String(body.workLocation) : undefined) : undefined,
       status: body.status != null ? String(body.status) : undefined,
     });
     sendSuccess(res, employee, 'Employee updated');
@@ -155,9 +155,9 @@ export async function updateEmployeeProfile(req: Request, res: Response, next: N
     const employee = await employeeService.updateProfile(id, {
       personalInfo: body.personalInfo,
       bankDetail: body.bankDetail,
-      emergencyContacts: body.emergencyContacts,
-      educations: body.educations,
-      experiences: body.experiences,
+      emergencyContacts: body.emergencyContacts as { contactName: string; relationship: string; phone: string; alternatePhone?: string; email?: string; address?: string; isPrimary?: boolean }[] | undefined,
+      educations: body.educations as { qualification: string; institution: string; universityBoard: string; yearOfPassing: number; percentageOrCgpa?: string; divisionOrClass?: string; specialization?: string; startDate?: string; endDate?: string }[] | undefined,
+      experiences: body.experiences as { companyName: string; designation: string; employmentType: string; startDate: string; endDate: string; isCurrent: boolean; reasonForLeaving?: string; lastDrawnSalary?: string; reportingManagerName?: string }[] | undefined,
     });
     sendSuccess(res, employee, 'Profile updated');
   } catch (e) {

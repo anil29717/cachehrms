@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { LogIn, Mail, Lock, Sun, Moon } from 'lucide-react';
+import { LogIn, Mail, Lock, Sun, Moon, ShieldCheck, Building2, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useTheme } from '../theme/ThemeProvider';
 import { api } from '../api/client';
@@ -32,7 +32,6 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [microsoftEnabled, setMicrosoftEnabled] = useState(false);
 
-  // Check if Microsoft SSO is configured (so we can show/hide the button)
   useEffect(() => {
     api
       .get<{ success?: boolean; data?: { enabled: boolean } }>('/auth/microsoft', { check: '1' })
@@ -40,7 +39,6 @@ export function Login() {
       .catch(() => {});
   }, []);
 
-  // Handle Microsoft SSO callback: hash contains access_token, refresh_token, user (base64url)
   useEffect(() => {
     const hash = window.location.hash.slice(1);
     if (!hash) {
@@ -109,93 +107,120 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-dark-bg p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-dark-bg p-4 relative overflow-hidden">
+      {/* Subtle background accent */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-light-primary/5 dark:bg-dark-primary/10 blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-light-primary/5 dark:bg-dark-primary/10 blur-3xl" />
+      </div>
+
       <button
         type="button"
         onClick={toggle}
-        className="absolute top-4 right-4 p-2 rounded-lg bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border shadow-sm"
+        className="absolute top-4 right-4 z-10 p-2.5 rounded-xl bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border shadow-sm hover:shadow-md transition-shadow"
         aria-label="Toggle theme"
       >
-        {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+        {theme === 'light' ? <Moon className="w-5 h-5 text-gray-600" /> : <Sun className="w-5 h-5 text-amber-500" />}
       </button>
 
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md relative z-10">
+        {/* Header with premium icon */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text">Cachedigitech HRMS</h1>
-          <p className="text-gray-600 dark:text-dark-textSecondary mt-1">Sign in to your account</p>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border shadow-lg shadow-gray-200/50 dark:shadow-dark-bg/50 mb-4">
+            <Building2 className="w-8 h-8 text-light-primary dark:text-dark-primary" />
+          </div>
+          <div className="flex items-center justify-center gap-1.5 mb-1">
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-dark-text">Cachedigitech HRMS</h1>
+            <Sparkles className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+          </div>
+          <p className="text-gray-600 dark:text-dark-textSecondary text-sm">Sign in to your account</p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl shadow-lg p-6 space-y-4"
-        >
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-dark-textSecondary mb-1">
-              Email
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-light-primary dark:focus:ring-dark-primary focus:border-transparent"
-                autoComplete="email"
-              />
-            </div>
-          </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-dark-textSecondary mb-1">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text focus:ring-2 focus:ring-light-primary dark:focus:ring-dark-primary focus:border-transparent"
-                autoComplete="current-password"
-              />
-            </div>
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-light-primary dark:bg-dark-primary text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50 transition"
-          >
-            <LogIn className="w-5 h-5" />
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-
-          {microsoftEnabled && (
-            <>
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-gray-200 dark:border-dark-border" />
+        {/* Card with left accent */}
+        <div className="relative bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-2xl shadow-xl shadow-gray-200/30 dark:shadow-black/20 overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-light-primary dark:bg-dark-primary" />
+          <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-5">
+            <div>
+              <label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-textSecondary mb-2">
+                <Mail className="w-4 h-4 text-gray-500 dark:text-dark-textSecondary" />
+                Email
+              </label>
+              <div className="relative group">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-lg bg-gray-100 dark:bg-dark-bg group-focus-within:bg-light-primary/10 dark:group-focus-within:bg-dark-primary/20 transition-colors">
+                  <Mail className="w-4 h-4 text-gray-500 dark:text-dark-textSecondary group-focus-within:text-light-primary dark:group-focus-within:text-dark-primary transition-colors" />
                 </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white dark:bg-dark-card text-gray-500 dark:text-dark-textSecondary">or</span>
-                </div>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  className="w-full pl-14 pr-4 py-3 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-400 focus:ring-2 focus:ring-light-primary/20 dark:focus:ring-dark-primary/30 focus:border-light-primary dark:focus:border-dark-primary transition"
+                  autoComplete="email"
+                />
               </div>
-              <a
-                href={authMicrosoftUrl}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-700 dark:text-dark-text font-medium hover:bg-gray-50 dark:hover:bg-dark-card transition"
-              >
-                <MicrosoftIcon className="w-5 h-5" />
-                Sign in with Microsoft
-              </a>
-            </>
-          )}
-        </form>
+            </div>
+            <div>
+              <label htmlFor="password" className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-dark-textSecondary mb-2">
+                <Lock className="w-4 h-4 text-gray-500 dark:text-dark-textSecondary" />
+                Password
+              </label>
+              <div className="relative group">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-lg bg-gray-100 dark:bg-dark-bg group-focus-within:bg-light-primary/10 dark:group-focus-within:bg-dark-primary/20 transition-colors">
+                  <Lock className="w-4 h-4 text-gray-500 dark:text-dark-textSecondary group-focus-within:text-light-primary dark:group-focus-within:text-dark-primary transition-colors" />
+                </div>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-14 pr-4 py-3 border border-gray-300 dark:border-dark-border rounded-xl bg-white dark:bg-dark-bg text-gray-900 dark:text-dark-text placeholder-gray-400 focus:ring-2 focus:ring-light-primary/20 dark:focus:ring-dark-primary/30 focus:border-light-primary dark:focus:border-dark-primary transition"
+                  autoComplete="current-password"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 bg-light-primary dark:bg-dark-primary text-white font-semibold rounded-xl hover:opacity-95 active:scale-[0.99] disabled:opacity-50 transition shadow-lg shadow-light-primary/25 dark:shadow-dark-primary/25"
+            >
+              <LogIn className="w-5 h-5" />
+              {loading ? 'Signing in...' : 'Sign in'}
+            </button>
 
-        <p className="text-center text-sm text-gray-500 dark:text-dark-textSecondary mt-4">
-          Default: admin@cachedigitech.com / Admin@123 (after seed)
-        </p>
+            {microsoftEnabled && (
+              <>
+                <div className="relative py-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-gray-200 dark:border-dark-border" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-3 bg-white dark:bg-dark-card text-gray-500 dark:text-dark-textSecondary font-medium">or continue with</span>
+                  </div>
+                </div>
+                <a
+                  href={authMicrosoftUrl}
+                  className="w-full flex items-center justify-center gap-2.5 py-3 px-4 border-2 border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-bg text-gray-700 dark:text-dark-text font-medium hover:bg-gray-50 dark:hover:bg-dark-card hover:border-gray-300 dark:hover:border-dark-border transition"
+                >
+                  <MicrosoftIcon className="w-5 h-5" />
+                  Sign in with Microsoft
+                </a>
+              </>
+            )}
+          </form>
+        </div>
+
+        {/* Footer with secure badge */}
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-textSecondary">
+            <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+            <span>Secure login</span>
+          </div>
+          <p className="text-center text-xs text-gray-500 dark:text-dark-textSecondary">
+            Default: admin@cachedigitech.com / Admin@123 (after seed)
+          </p>
+        </div>
       </div>
     </div>
   );

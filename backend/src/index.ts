@@ -6,6 +6,7 @@ import { env } from './config/env.js';
 import { apiRoutes } from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFound.js';
+import { startCron } from './cron/index.js';
 
 const app = express();
 
@@ -28,4 +29,5 @@ app.use(errorHandler);
 
 app.listen(env.PORT, () => {
   console.log(`HRMS API running at http://localhost:${env.PORT}${env.API_PREFIX}`);
+  startCron();
 });

@@ -9,7 +9,9 @@ build/
 .env
 .env.local
 .env.*.local
+.env.example
 *.env
+*.env.example
 
 # Vite
 *.local
